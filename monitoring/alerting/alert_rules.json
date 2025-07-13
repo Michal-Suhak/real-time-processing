@@ -1,0 +1,235 @@
+{
+  "alert_rules": [
+    {
+      "name": "high_anomaly_score",
+      "title": "High Anomaly Score Detected",
+      "description": "Inventory event with unusually high anomaly score detected",
+      "severity": "warning",
+      "source": "anomaly_detection",
+      "conditions": [
+        {
+          "field": "anomaly_score",
+          "operator": "gt",
+          "value": 0.8
+        }
+      ],
+      "metadata": {
+        "threshold": 0.8,
+        "category": "anomaly_detection"
+      }
+    },
+    {
+      "name": "critical_anomaly_score",
+      "title": "Critical Anomaly Score Detected",
+      "description": "Inventory event with critical anomaly score requiring immediate attention",
+      "severity": "critical",
+      "source": "anomaly_detection", 
+      "conditions": [
+        {
+          "field": "anomaly_score",
+          "operator": "gt",
+          "value": 0.95
+        }
+      ],
+      "metadata": {
+        "threshold": 0.95,
+        "category": "anomaly_detection"
+      }
+    },
+    {
+      "name": "negative_stock_risk",
+      "title": "Negative Stock Risk",
+      "description": "Item quantity approaching or below zero - potential stockout",
+      "severity": "error",
+      "source": "inventory_monitoring",
+      "conditions": [
+        {
+          "field": "quantity",
+          "operator": "lt",
+          "value": 5
+        },
+        {
+          "field": "action",
+          "operator": "eq",
+          "value": "stock_out"
+        }
+      ],
+      "metadata": {
+        "threshold": 5,
+        "category": "inventory_risk"
+      }
+    },
+    {
+      "name": "large_quantity_movement", 
+      "title": "Large Quantity Movement",
+      "description": "Unusually large inventory movement detected",
+      "severity": "warning",
+      "source": "inventory_monitoring",
+      "conditions": [
+        {
+          "field": "quantity",
+          "operator": "gt",
+          "value": 1000
+        }
+      ],
+      "metadata": {
+        "threshold": 1000,
+        "category": "quantity_monitoring"
+      }
+    },
+    {
+      "name": "after_hours_activity",
+      "title": "After Hours Activity",
+      "description": "Inventory activity detected outside normal business hours",
+      "severity": "warning",
+      "source": "security_monitoring",
+      "conditions": [
+        {
+          "field": "business_context",
+          "operator": "contains",
+          "value": "after_hours"
+        }
+      ],
+      "metadata": {
+        "category": "security"
+      }
+    },
+    {
+      "name": "high_processing_latency",
+      "title": "High Processing Latency",
+      "description": "Event processing taking longer than expected",
+      "severity": "warning",
+      "source": "performance_monitoring",
+      "conditions": [
+        {
+          "field": "processing_time_ms",
+          "operator": "gt",
+          "value": 5000
+        }
+      ],
+      "metadata": {
+        "threshold": 5000,
+        "category": "performance"
+      }
+    },
+    {
+      "name": "processing_errors",
+      "title": "Processing Errors",
+      "description": "Errors detected during event processing",
+      "severity": "error",
+      "source": "error_monitoring",
+      "conditions": [
+        {
+          "field": "level",
+          "operator": "eq",
+          "value": "error"
+        }
+      ],
+      "metadata": {
+        "category": "errors"
+      }
+    },
+    {
+      "name": "rapid_stock_depletion",
+      "title": "Rapid Stock Depletion",
+      "description": "Stock level decreasing rapidly - potential demand spike or data issue",
+      "severity": "warning",
+      "source": "trend_analysis",
+      "conditions": [
+        {
+          "field": "trend_analysis",
+          "operator": "contains",
+          "value": "rapid_depletion"
+        }
+      ],
+      "metadata": {
+        "category": "trend_analysis"
+      }
+    },
+    {
+      "name": "suspicious_user_activity",
+      "title": "Suspicious User Activity",
+      "description": "User performing unusual number of operations",
+      "severity": "warning",
+      "source": "security_monitoring",
+      "conditions": [
+        {
+          "field": "user_activity_score", 
+          "operator": "gt",
+          "value": 0.8
+        }
+      ],
+      "metadata": {
+        "threshold": 0.8,
+        "category": "security"
+      }
+    },
+    {
+      "name": "system_health_degradation",
+      "title": "System Health Degradation",
+      "description": "Overall system health metrics indicate degraded performance",
+      "severity": "error",
+      "source": "system_monitoring",
+      "conditions": [
+        {
+          "field": "success_rate",
+          "operator": "lt",
+          "value": 0.95
+        }
+      ],
+      "metadata": {
+        "threshold": 0.95,
+        "category": "system_health"
+      }
+    },
+    {
+      "name": "kafka_consumer_lag",
+      "title": "Kafka Consumer Lag",
+      "description": "Processing pipeline falling behind Kafka topic",
+      "severity": "warning",
+      "source": "kafka_monitoring",
+      "conditions": [
+        {
+          "field": "consumer_lag",
+          "operator": "gt",
+          "value": 1000
+        }
+      ],
+      "metadata": {
+        "threshold": 1000,
+        "category": "kafka"
+      }
+    },
+    {
+      "name": "data_quality_issues",
+      "title": "Data Quality Issues",
+      "description": "Invalid or malformed data detected in processing pipeline",
+      "severity": "warning",
+      "source": "data_quality",
+      "conditions": [
+        {
+          "field": "data_quality_score",
+          "operator": "lt",
+          "value": 0.8
+        }
+      ],
+      "metadata": {
+        "threshold": 0.8,
+        "category": "data_quality"
+      }
+    }
+  ],
+  "notification_config": {
+    "min_notification_severity": "warning",
+    "rate_limiting": {
+      "enabled": true,
+      "max_alerts_per_minute": 10,
+      "burst_threshold": 50
+    },
+    "escalation": {
+      "enabled": true,
+      "escalation_time_minutes": 30,
+      "escalation_severity": "critical"
+    }
+  }
+}

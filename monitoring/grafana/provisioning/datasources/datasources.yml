@@ -1,0 +1,51 @@
+apiVersion: 1
+
+datasources:
+  # InfluxDB - Time-series metrics
+  - name: InfluxDB-Warehouse
+    type: influxdb
+    access: proxy
+    url: http://influxdb:8086
+    isDefault: true
+    jsonData:
+      version: Flux
+      organization: warehouse
+      defaultBucket: warehouse_metrics
+      tlsSkipVerify: true
+    secureJsonData:
+      token: warehouse-super-secret-admin-token
+    editable: true
+
+  # ClickHouse - Data warehouse
+  - name: ClickHouse-Warehouse
+    type: grafana-clickhouse-datasource
+    access: proxy
+    url: http://clickhouse:8123
+    jsonData:
+      defaultDatabase: warehouse_analytics
+      username: warehouse_user
+      tlsSkipVerify: true
+      timeout: 10
+    secureJsonData:
+      password: warehouse_password
+    editable: true
+
+  # Prometheus - System metrics (for processing pipeline)
+  - name: Prometheus-Pipeline
+    type: prometheus
+    access: proxy
+    url: http://processing-pipeline:8080
+    jsonData:
+      timeInterval: '5s'
+      queryTimeout: '10s'
+      httpMethod: GET
+    editable: true
+
+  # Elasticsearch - Logs (using simple JSON datasource)
+  - name: Elasticsearch-Logs
+    type: grafana-simple-json-datasource
+    access: proxy
+    url: http://elasticsearch:9200
+    jsonData:
+      timeField: '@timestamp'
+    editable: true

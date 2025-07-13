@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Warehouse Log Viewer</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .log-entry {
+            border-left: 4px solid #6c757d;
+            margin-bottom: 8px;
+            padding: 8px 12px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
+        .log-entry.info { border-left-color: #17a2b8; }
+        .log-entry.warning { border-left-color: #ffc107; }
+        .log-entry.error { border-left-color: #dc3545; }
+        .log-entry.critical { border-left-color: #721c24; }
+        
+        .log-timestamp {
+            font-family: monospace;
+            font-size: 0.9em;
+            color: #6c757d;
+        }
+        
+        .log-level {
+            font-weight: bold;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.8em;
+        }
+        .log-level.info { background-color: #d1ecf1; color: #0c5460; }
+        .log-level.warning { background-color: #fff3cd; color: #856404; }
+        .log-level.error { background-color: #f8d7da; color: #721c24; }
+        .log-level.critical { background-color: #721c24; color: white; }
+        
+        .filter-section {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .search-stats {
+            background-color: #e9ecef;
+            padding: 8px 12px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            font-size: 0.9em;
+        }
+        
+        .log-json {
+            background-color: #2d3748;
+            color: #e2e8f0;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.85em;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+        }
+        
+        .sidebar {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            height: fit-content;
+        }
+        
+        .chart-container {
+            height: 200px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid mt-3">
+        <div class="row">
+            <!-- Main Content -->
+            <div class="col-lg-9">
+                <!-- Header -->
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h2><i class="fas fa-search"></i> Warehouse Log Viewer</h2>
+                    <div>
+                        <button class="btn btn-primary" onclick="exportLogs('json')">
+                            <i class="fas fa-download"></i> Export JSON
+                        </button>
+                        <button class="btn btn-success" onclick="exportLogs('csv')">
+                            <i class="fas fa-file-csv"></i> Export CSV
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Search Filters -->
+                <div class="filter-section">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="form-label">Text Search</label>
+                            <input type="text" class="form-control" id="textQuery" placeholder="Search in message, description, title...">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Log Level</label>
+                            <select class="form-select" id="levelFilter">
+                                <option value="">All Levels</option>
+                                <option value="info">Info</option>
+                                <option value="warning">Warning</option>
+                                <option value="error">Error</option>
+                                <option value="critical">Critical</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Source</label>
+                            <select class="form-select" id="sourceFilter">
+                                <option value="">All Sources</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row mt-3">
+                        <div class="col-md-3">
+                            <label class="form-label">Start Time</label>
+                            <input type="datetime-local" class="form-control" id="startTime">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">End Time</label>
+                            <input type="datetime-local" class="form-control" id="endTime">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Results</label>
+                            <select class="form-select" id="resultSize">
+                                <option value="50">50</option>
+                                <option value="100" selected>100</option>
+                                <option value="500">500</option>
+                                <option value="1000">1000</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">&nbsp;</label>
+                            <div class="d-grid">
+                                <button class="btn btn-primary" onclick="searchLogs()">
+                                    <i class="fas fa-search"></i> Search Logs
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Search Stats -->
+                <div id="searchStats" class="search-stats" style="display: none;">
+                    <i class="fas fa-info-circle"></i> 
+                    Found <span id="totalResults">0</span> results in <span id="searchTime">0</span>ms
+                </div>
+
+                <!-- Loading Indicator -->
+                <div id="loading" class="loading" style="display: none;">
+                    <i class="fas fa-spinner fa-spin fa-2x"></i>
+                    <p>Searching logs...</p>
+                </div>
+
+                <!-- Log Results -->
+                <div id="logResults"></div>
+
+                <!-- Pagination -->
+                <div id="pagination" class="d-flex justify-content-center mt-3" style="display: none;">
+                    <!-- Pagination will be inserted here -->
+                </div>
+            </div>
+
+            <!-- Sidebar -->
+            <div class="col-lg-3">
+                <div class="sidebar">
+                    <h5><i class="fas fa-chart-bar"></i> Log Analytics</h5>
+                    
+                    <!-- Quick Time Filters -->
+                    <div class="mb-3">
+                        <label class="form-label">Quick Time Range</label>
+                        <div class="btn-group-vertical d-grid gap-2">
+                            <button class="btn btn-outline-secondary btn-sm" onclick="setTimeRange(15)">Last 15 minutes</button>
+                            <button class="btn btn-outline-secondary btn-sm" onclick="setTimeRange(60)">Last hour</button>
+                            <button class="btn btn-outline-secondary btn-sm" onclick="setTimeRange(360)">Last 6 hours</button>
+                            <button class="btn btn-outline-secondary btn-sm" onclick="setTimeRange(1440)">Last 24 hours</button>
+                        </div>
+                    </div>
+
+                    <!-- Log Level Distribution -->
+                    <div class="mb-3">
+                        <h6>Log Level Distribution</h6>
+                        <canvas id="levelChart" class="chart-container"></canvas>
+                    </div>
+
+                    <!-- Activity Timeline -->
+                    <div class="mb-3">
+                        <h6>Activity Over Time</h6>
+                        <canvas id="timeChart" class="chart-container"></canvas>
+                    </div>
+
+                    <!-- Recent Searches -->
+                    <div class="mb-3">
+                        <h6>Recent Searches</h6>
+                        <div id="recentSearches">
+                            <small class="text-muted">No recent searches</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Log Detail Modal -->
+    <div class="modal fade" id="logDetailModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Log Entry Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="logDetailContent"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        let currentLogs = [];
+        let levelChart = null;
+        let timeChart = null;
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            loadIndices();
+            setDefaultTimeRange();
+            searchLogs(); // Initial search
+        });
+
+        async function loadIndices() {
+            try {
+                const response = await fetch('/api/indices');
+                const data = await response.json();
+                // Could populate index selector if needed
+                console.log('Available indices:', data.indices);
+            } catch (error) {
+                console.error('Failed to load indices:', error);
+            }
+        }
+
+        function setDefaultTimeRange() {
+            const now = new Date();
+            const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+            
+            document.getElementById('endTime').value = formatDateTimeLocal(now);
+            document.getElementById('startTime').value = formatDateTimeLocal(twentyFourHoursAgo);
+        }
+
+        function setTimeRange(minutes) {
+            const now = new Date();
+            const past = new Date(now.getTime() - minutes * 60 * 1000);
+            
+            document.getElementById('endTime').value = formatDateTimeLocal(now);
+            document.getElementById('startTime').value = formatDateTimeLocal(past);
+            
+            searchLogs();
+        }
+
+        function formatDateTimeLocal(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            
+            return `${year}-${month}-${day}T${hours}:${minutes}`;
+        }
+
+        async function searchLogs() {
+            const textQuery = document.getElementById('textQuery').value;
+            const levelFilter = document.getElementById('levelFilter').value;
+            const sourceFilter = document.getElementById('sourceFilter').value;
+            const startTime = document.getElementById('startTime').value;
+            const endTime = document.getElementById('endTime').value;
+            const size = parseInt(document.getElementById('resultSize').value);
+
+            const filters = {};
+            if (levelFilter) filters.level = levelFilter;
+            if (sourceFilter) filters.source = sourceFilter;
+
+            const searchParams = {
+                indices: ['warehouse-logs-*', 'warehouse-alerts-*', 'warehouse-audit-*'],
+                text_query: textQuery,
+                filters: filters,
+                start_time: startTime ? new Date(startTime).toISOString() : null,
+                end_time: endTime ? new Date(endTime).toISOString() : null,
+                size: size
+            };
+
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('logResults').innerHTML = '';
+            document.getElementById('searchStats').style.display = 'none';
+
+            try {
+                const response = await fetch('/api/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(searchParams)
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    currentLogs = data.logs;
+                    displayLogs(data.logs);
+                    updateSearchStats(data.total, data.took);
+                    await loadAggregations(searchParams);
+                    saveRecentSearch(searchParams);
+                } else {
+                    throw new Error(data.error || 'Search failed');
+                }
+            } catch (error) {
+                console.error('Search error:', error);
+                document.getElementById('logResults').innerHTML = 
+                    `<div class="alert alert-danger">Search failed: ${error.message}</div>`;
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        function displayLogs(logs) {
+            const container = document.getElementById('logResults');
+            
+            if (logs.length === 0) {
+                container.innerHTML = '<div class="alert alert-info">No logs found matching your search criteria.</div>';
+                return;
+            }
+
+            const html = logs.map(log => formatLogEntry(log)).join('');
+            container.innerHTML = html;
+        }
+
+        function formatLogEntry(log) {
+            const level = (log.level || 'info').toLowerCase();
+            const timestamp = new Date(log['@timestamp'] || log.timestamp).toLocaleString();
+            const message = log.message || log.description || log.title || 'No message';
+            const source = log.source || log.logger || 'unknown';
+            
+            return `
+                <div class="log-entry ${level}" onclick="showLogDetail('${log._id}')">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="flex-grow-1">
+                            <div class="d-flex align-items-center mb-1">
+                                <span class="log-level ${level}">${level.toUpperCase()}</span>
+                                <span class="log-timestamp ms-2">${timestamp}</span>
+                                <span class="badge bg-secondary ms-2">${source}</span>
+                            </div>
+                            <div class="log-message">${escapeHtml(message)}</div>
+                            ${log.item_id ? `<small class="text-muted">Item: ${log.item_id}</small>` : ''}
+                            ${log.warehouse_zone ? `<small class="text-muted ms-2">Zone: ${log.warehouse_zone}</small>` : ''}
+                        </div>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation(); showLogDetail('${log._id}')">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function showLogDetail(logId) {
+            const log = currentLogs.find(l => l._id === logId);
+            if (!log) return;
+
+            const content = document.getElementById('logDetailContent');
+            content.innerHTML = `
+                <div class="mb-3">
+                    <h6>Log Entry</h6>
+                    <div class="log-json">${JSON.stringify(log, null, 2)}</div>
+                </div>
+            `;
+
+            new bootstrap.Modal(document.getElementById('logDetailModal')).show();
+        }
+
+        function updateSearchStats(total, took) {
+            document.getElementById('totalResults').textContent = total.toLocaleString();
+            document.getElementById('searchTime').textContent = took;
+            document.getElementById('searchStats').style.display = 'block';
+        }
+
+        async function loadAggregations(searchParams) {
+            try {
+                const response = await fetch('/api/aggregations', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(searchParams)
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    updateLevelChart(data.field_counts);
+                    updateTimeChart(data.time_histogram);
+                }
+            } catch (error) {
+                console.error('Failed to load aggregations:', error);
+            }
+        }
+
+        function updateLevelChart(fieldCounts) {
+            const ctx = document.getElementById('levelChart').getContext('2d');
+            
+            if (levelChart) {
+                levelChart.destroy();
+            }
+
+            const colors = {
+                info: '#17a2b8',
+                warning: '#ffc107',
+                error: '#dc3545',
+                critical: '#721c24'
+            };
+
+            levelChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: fieldCounts.map(f => f.key.toUpperCase()),
+                    datasets: [{
+                        data: fieldCounts.map(f => f.count),
+                        backgroundColor: fieldCounts.map(f => colors[f.key] || '#6c757d')
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateTimeChart(timeHistogram) {
+            const ctx = document.getElementById('timeChart').getContext('2d');
+            
+            if (timeChart) {
+                timeChart.destroy();
+            }
+
+            timeChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: timeHistogram.map(t => new Date(t.timestamp).toLocaleTimeString()),
+                    datasets: [{
+                        label: 'Log Count',
+                        data: timeHistogram.map(t => t.count),
+                        borderColor: '#007bff',
+                        backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+        }
+
+        async function exportLogs(format) {
+            const textQuery = document.getElementById('textQuery').value;
+            const levelFilter = document.getElementById('levelFilter').value;
+            const sourceFilter = document.getElementById('sourceFilter').value;
+            const startTime = document.getElementById('startTime').value;
+            const endTime = document.getElementById('endTime').value;
+
+            const filters = {};
+            if (levelFilter) filters.level = levelFilter;
+            if (sourceFilter) filters.source = sourceFilter;
+
+            const exportParams = {
+                indices: ['warehouse-logs-*', 'warehouse-alerts-*', 'warehouse-audit-*'],
+                text_query: textQuery,
+                filters: filters,
+                start_time: startTime ? new Date(startTime).toISOString() : null,
+                end_time: endTime ? new Date(endTime).toISOString() : null,
+                format: format,
+                size: 10000
+            };
+
+            try {
+                const response = await fetch('/api/export', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(exportParams)
+                });
+
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = response.headers.get('Content-Disposition').split('filename=')[1];
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                } else {
+                    const error = await response.json();
+                    alert('Export failed: ' + error.error);
+                }
+            } catch (error) {
+                console.error('Export error:', error);
+                alert('Export failed: ' + error.message);
+            }
+        }
+
+        function saveRecentSearch(searchParams) {
+            let recentSearches = JSON.parse(localStorage.getItem('recentSearches') || '[]');
+            
+            const search = {
+                query: searchParams.text_query,
+                filters: searchParams.filters,
+                timestamp: new Date().toISOString()
+            };
+            
+            recentSearches.unshift(search);
+            recentSearches = recentSearches.slice(0, 5); // Keep only 5 recent searches
+            
+            localStorage.setItem('recentSearches', JSON.stringify(recentSearches));
+            displayRecentSearches(recentSearches);
+        }
+
+        function displayRecentSearches(searches) {
+            const container = document.getElementById('recentSearches');
+            
+            if (searches.length === 0) {
+                container.innerHTML = '<small class="text-muted">No recent searches</small>';
+                return;
+            }
+
+            const html = searches.map(search => `
+                <div class="mb-1">
+                    <small class="d-block text-truncate">
+                        ${search.query || 'All logs'} 
+                        ${Object.keys(search.filters).length > 0 ? '(filtered)' : ''}
+                    </small>
+                    <small class="text-muted">${new Date(search.timestamp).toLocaleString()}</small>
+                </div>
+            `).join('<hr class="my-1">');
+            
+            container.innerHTML = html;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Load recent searches on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const recentSearches = JSON.parse(localStorage.getItem('recentSearches') || '[]');
+            displayRecentSearches(recentSearches);
+        });
+
+        // Enter key search
+        document.getElementById('textQuery').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                searchLogs();
+            }
+        });
+    </script>
+</body>
+</html>

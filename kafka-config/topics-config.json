@@ -1,0 +1,88 @@
+{
+  "topics": [
+    {
+      "name": "warehouse.inventory",
+      "partitions": 6,
+      "replication_factor": 1,
+      "config": {
+        "retention.ms": "604800000",
+        "retention.bytes": "1073741824",
+        "cleanup.policy": "delete",
+        "compression.type": "snappy",
+        "segment.ms": "86400000",
+        "min.insync.replicas": "1"
+      },
+      "description": "Inventory changes: stock updates, item additions/removals"
+    },
+    {
+      "name": "warehouse.orders",
+      "partitions": 8,
+      "replication_factor": 1,
+      "config": {
+        "retention.ms": "2592000000",
+        "retention.bytes": "2147483648",
+        "cleanup.policy": "delete",
+        "compression.type": "snappy",
+        "segment.ms": "86400000",
+        "min.insync.replicas": "1"
+      },
+      "description": "Order processing: creation, updates, fulfillment, cancellations"
+    },
+    {
+      "name": "warehouse.shipments",
+      "partitions": 4,
+      "replication_factor": 1,
+      "config": {
+        "retention.ms": "2592000000",
+        "retention.bytes": "1073741824",
+        "cleanup.policy": "delete",
+        "compression.type": "snappy",
+        "segment.ms": "86400000",
+        "min.insync.replicas": "1"
+      },
+      "description": "Shipment tracking: dispatch, transit, delivery status"
+    },
+    {
+      "name": "warehouse.alerts",
+      "partitions": 3,
+      "replication_factor": 1,
+      "config": {
+        "retention.ms": "1209600000",
+        "retention.bytes": "536870912",
+        "cleanup.policy": "delete",
+        "compression.type": "snappy",
+        "segment.ms": "86400000",
+        "min.insync.replicas": "1"
+      },
+      "description": "System alerts: low stock, errors, threshold violations"
+    },
+    {
+      "name": "warehouse.audit",
+      "partitions": 2,
+      "replication_factor": 1,
+      "config": {
+        "retention.ms": "7776000000",
+        "retention.bytes": "5368709120",
+        "cleanup.policy": "delete",
+        "compression.type": "gzip",
+        "segment.ms": "86400000",
+        "min.insync.replicas": "1"
+      },
+      "description": "Audit logs: user actions, security events, compliance tracking"
+    },
+    {
+      "name": "warehouse.metrics",
+      "partitions": 3,
+      "replication_factor": 1,
+      "config": {
+        "retention.ms": "259200000",
+        "retention.bytes": "1073741824",
+        "cleanup.policy": "delete",
+        "compression.type": "snappy",
+        "segment.ms": "3600000",
+        "min.insync.replicas": "1"
+      },
+      "description": "Performance metrics: throughput, latency, system health"
+    }
+  ]
+}

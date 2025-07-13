@@ -1,0 +1,306 @@
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15
+    container_name: warehouse_db
+    environment:
+      POSTGRES_DB: warehouse
+      POSTGRES_USER: warehouse_user
+      POSTGRES_PASSWORD: warehouse_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - warehouse_network
+
+  # Django Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: warehouse_backend
+    environment:
+      - DEBUG=1
+      - DATABASE_URL=postgresql://warehouse_user:warehouse_pass@db:5432/warehouse
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - db
+      - kafka
+    networks:
+      - warehouse_network
+    command: >
+      sh -c "uv run python manage.py migrate &&
+             uv run python manage.py runserver 0.0.0.0:8000"
+
+  # React Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: warehouse_frontend
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000/api
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    networks:
+      - warehouse_network
+
+  # Zookeeper (required for Kafka)
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: warehouse_zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - warehouse_network
+
+  # Kafka
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: warehouse_kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824
+      KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 300000
+      KAFKA_MESSAGE_MAX_BYTES: 1000000
+      KAFKA_REPLICA_FETCH_MAX_BYTES: 1000000
+      KAFKA_NUM_PARTITIONS: 3
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - warehouse_network
+
+  # Kafka Topic Initialization
+  kafka-topics-init:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: warehouse_kafka_topics_init
+    depends_on:
+      - kafka
+    volumes:
+      - ./kafka-config:/kafka-config
+    networks:
+      - warehouse_network
+    command: >
+      sh -c "
+        # Install jq for JSON parsing
+        apt-get update && apt-get install -y jq &&
+        # Run the topic creation script
+        /kafka-config/create-topics.sh
+      "
+
+  # Kafka UI (Management Interface)
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: warehouse_kafka_ui
+    depends_on:
+      - kafka
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: warehouse
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+      DYNAMIC_CONFIG_ENABLED: true
+    networks:
+      - warehouse_network
+
+  # Redis (Caching and Intermediate Storage)
+  redis:
+    image: redis:7-alpine
+    container_name: warehouse_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - warehouse_network
+
+  # Processing Pipeline
+  processing-pipeline:
+    build:
+      context: ./processing-pipeline
+      dockerfile: Dockerfile
+    container_name: warehouse_processing_pipeline
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - REDIS_URL=redis://redis:6379/0
+      - LOG_LEVEL=INFO
+      - INFLUXDB_URL=http://influxdb:8086
+      - INFLUXDB_TOKEN=warehouse-super-secret-admin-token
+      - INFLUXDB_ORG=warehouse
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - CLICKHOUSE_URL=http://clickhouse:8123
+      - CLICKHOUSE_USER=warehouse_user
+      - CLICKHOUSE_PASSWORD=warehouse_password
+    depends_on:
+      - kafka
+      - redis
+      - influxdb
+      - elasticsearch
+      - clickhouse
+    volumes:
+      - ./processing-pipeline:/app
+      - ./processing-pipeline/logs:/app/logs
+    networks:
+      - warehouse_network
+    restart: unless-stopped
+
+  # InfluxDB (Time-series metrics storage)
+  influxdb:
+    image: influxdb:2.7
+    container_name: warehouse_influxdb
+    ports:
+      - "8086:8086"
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=warehouse-admin-2024
+      - DOCKER_INFLUXDB_INIT_ORG=warehouse
+      - DOCKER_INFLUXDB_INIT_BUCKET=warehouse_metrics
+      - DOCKER_INFLUXDB_INIT_RETENTION=30d
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=warehouse-super-secret-admin-token
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+      - influxdb_config:/etc/influxdb2
+      - ./storage-config/influxdb:/docker-entrypoint-initdb.d
+    networks:
+      - warehouse_network
+
+  # Elasticsearch (Log search and analysis)
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: warehouse_elasticsearch
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - xpack.security.enrollment.enabled=false
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+      - bootstrap.memory_lock=true
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+      - ./storage-config/elasticsearch/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    networks:
+      - warehouse_network
+
+  # Elasticsearch setup (indices and templates)
+  elasticsearch-setup:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: warehouse_elasticsearch_setup
+    depends_on:
+      - elasticsearch
+    volumes:
+      - ./storage-config/elasticsearch:/elasticsearch-config
+    networks:
+      - warehouse_network
+    command: >
+      sh -c "
+        apt-get update && apt-get install -y curl jq &&
+        /elasticsearch-config/setup-indices.sh
+      "
+
+  # ClickHouse (Data warehouse for historical analytics)
+  clickhouse:
+    image: clickhouse/clickhouse-server:23.8
+    container_name: warehouse_clickhouse
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    environment:
+      - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - clickhouse_logs:/var/log/clickhouse-server
+      - ./storage-config/clickhouse/clickhouse-config.xml:/etc/clickhouse-server/config.xml
+      - ./storage-config/clickhouse/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    networks:
+      - warehouse_network
+
+  # Grafana (Visualization and dashboards)
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: warehouse_grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-clickhouse-datasource
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+    depends_on:
+      - influxdb
+      - clickhouse
+    networks:
+      - warehouse_network
+
+  # Log Viewer (Web-based log search interface)
+  log-viewer:
+    build:
+      context: ./monitoring/log-viewer
+      dockerfile: Dockerfile
+    container_name: warehouse_log_viewer
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=production
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+    depends_on:
+      - elasticsearch
+    volumes:
+      - ./monitoring/log-viewer:/app
+    networks:
+      - warehouse_network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  kafka_data:
+  redis_data:
+  influxdb_data:
+  influxdb_config:
+  elasticsearch_data:
+  clickhouse_data:
+  clickhouse_logs:
+  grafana_data:
+
+networks:
+  warehouse_network:
+    driver: bridge

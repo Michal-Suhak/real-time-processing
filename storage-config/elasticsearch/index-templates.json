@@ -1,0 +1,180 @@
+{
+  "index_templates": [
+    {
+      "name": "warehouse-logs-template",
+      "index_patterns": ["warehouse-logs-*"],
+      "template": {
+        "settings": {
+          "number_of_shards": 2,
+          "number_of_replicas": 0,
+          "index.refresh_interval": "5s",
+          "index.max_result_window": 50000,
+          "index.lifecycle.name": "warehouse-logs-policy",
+          "index.lifecycle.rollover_alias": "warehouse-logs"
+        },
+        "mappings": {
+          "properties": {
+            "@timestamp": { "type": "date" },
+            "timestamp": { "type": "date" },
+            "level": { "type": "keyword" },
+            "logger": { "type": "keyword" },
+            "message": { 
+              "type": "text",
+              "analyzer": "standard",
+              "fields": {
+                "keyword": { "type": "keyword", "ignore_above": 256 }
+              }
+            },
+            "topic": { "type": "keyword" },
+            "partition": { "type": "integer" },
+            "offset": { "type": "long" },
+            "item_id": { "type": "keyword" },
+            "action": { "type": "keyword" },
+            "quantity": { "type": "integer" },
+            "location_id": { "type": "keyword" },
+            "user_id": { "type": "keyword" },
+            "anomaly_score": { "type": "float" },
+            "processing_time_ms": { "type": "integer" },
+            "correlation_id": { "type": "keyword" },
+            "source": { "type": "keyword" },
+            "warehouse_zone": { "type": "keyword" },
+            "item_category": { "type": "keyword" },
+            "business_impact": { "type": "keyword" },
+            "tags": { "type": "keyword" }
+          }
+        }
+      }
+    },
+    {
+      "name": "warehouse-alerts-template", 
+      "index_patterns": ["warehouse-alerts-*"],
+      "template": {
+        "settings": {
+          "number_of_shards": 1,
+          "number_of_replicas": 0,
+          "index.refresh_interval": "1s",
+          "index.lifecycle.name": "warehouse-alerts-policy"
+        },
+        "mappings": {
+          "properties": {
+            "@timestamp": { "type": "date" },
+            "alert_type": { "type": "keyword" },
+            "severity": { "type": "keyword" },
+            "title": { "type": "text" },
+            "description": { "type": "text" },
+            "source_data": { "type": "object" },
+            "anomaly_details": { "type": "object" },
+            "confidence_score": { "type": "float" },
+            "resolved": { "type": "boolean" },
+            "resolution_time": { "type": "date" },
+            "assignee": { "type": "keyword" },
+            "tags": { "type": "keyword" }
+          }
+        }
+      }
+    },
+    {
+      "name": "warehouse-audit-template",
+      "index_patterns": ["warehouse-audit-*"],
+      "template": {
+        "settings": {
+          "number_of_shards": 1,
+          "number_of_replicas": 1,
+          "index.refresh_interval": "30s",
+          "index.lifecycle.name": "warehouse-audit-policy"
+        },
+        "mappings": {
+          "properties": {
+            "@timestamp": { "type": "date" },
+            "event_type": { "type": "keyword" },
+            "user_id": { "type": "keyword" },
+            "user_role": { "type": "keyword" },
+            "action": { "type": "keyword" },
+            "resource": { "type": "keyword" },
+            "resource_id": { "type": "keyword" },
+            "ip_address": { "type": "ip" },
+            "user_agent": { "type": "text" },
+            "session_id": { "type": "keyword" },
+            "success": { "type": "boolean" },
+            "error_message": { "type": "text" },
+            "previous_values": { "type": "object" },
+            "new_values": { "type": "object" },
+            "compliance_flags": { "type": "keyword" }
+          }
+        }
+      }
+    }
+  ],
+  "lifecycle_policies": [
+    {
+      "name": "warehouse-logs-policy",
+      "policy": {
+        "phases": {
+          "hot": {
+            "actions": {
+              "rollover": {
+                "max_size": "1GB",
+                "max_age": "1d"
+              }
+            }
+          },
+          "warm": {
+            "min_age": "7d",
+            "actions": {
+              "allocate": {
+                "number_of_replicas": 0
+              }
+            }
+          },
+          "delete": {
+            "min_age": "30d"
+          }
+        }
+      }
+    },
+    {
+      "name": "warehouse-alerts-policy",
+      "policy": {
+        "phases": {
+          "hot": {
+            "actions": {
+              "rollover": {
+                "max_size": "500MB",
+                "max_age": "7d"
+              }
+            }
+          },
+          "delete": {
+            "min_age": "90d"
+          }
+        }
+      }
+    },
+    {
+      "name": "warehouse-audit-policy",
+      "policy": {
+        "phases": {
+          "hot": {
+            "actions": {
+              "rollover": {
+                "max_size": "2GB",
+                "max_age": "30d"
+              }
+            }
+          },
+          "warm": {
+            "min_age": "90d",
+            "actions": {
+              "allocate": {
+                "number_of_replicas": 0
+              }
+            }
+          },
+          "delete": {
+            "min_age": "2y"
+          }
+        }
+      }
+    }
+  ]
+}

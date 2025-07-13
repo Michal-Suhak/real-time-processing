@@ -1,0 +1,39 @@
+{
+  "notification_channels": {
+    "email": {
+      "host": "smtp.gmail.com",
+      "port": 587,
+      "username": "alerts@warehouse.com",
+      "password": "your-app-password",
+      "from_email": "alerts@warehouse.com",
+      "to_emails": [
+        "ops@warehouse.com",
+        "admin@warehouse.com"
+      ],
+      "use_tls": true
+    },
+    "slack": {
+      "webhook_url": "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK"
+    },
+    "webhooks": [
+      {
+        "url": "http://localhost:8000/api/alerts/webhook",
+        "headers": {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer your-api-token"
+        }
+      }
+    ]
+  },
+  "min_notification_severity": "warning",
+  "rate_limiting": {
+    "enabled": true,
+    "max_alerts_per_minute": 10,
+    "burst_threshold": 50
+  },
+  "escalation": {
+    "enabled": true,
+    "escalation_time_minutes": 30,
+    "escalation_severity": "critical"
+  }
+}

@@ -1,0 +1,130 @@
+<?xml version="1.0"?>
+<yandex>
+    <!-- Server configuration -->
+    <tcp_port>9000</tcp_port>
+    <http_port>8123</http_port>
+    <interserver_http_port>9009</interserver_http_port>
+    
+    <!-- Listen on all interfaces -->
+    <listen_host>0.0.0.0</listen_host>
+    
+    <!-- Maximum number of inbound connections -->
+    <max_connections>1000</max_connections>
+    
+    <!-- Logging -->
+    <logger>
+        <level>information</level>
+        <log>/var/log/clickhouse-server/clickhouse-server.log</log>
+        <errorlog>/var/log/clickhouse-server/clickhouse-server.err.log</errorlog>
+        <size>1000M</size>
+        <count>10</count>
+    </logger>
+    
+    <!-- Data and temp path -->
+    <path>/var/lib/clickhouse/</path>
+    <tmp_path>/var/lib/clickhouse/tmp/</tmp_path>
+    
+    <!-- Users configuration -->
+    <users>
+        <default>
+            <password></password>
+            <networks>
+                <ip>::/0</ip>
+            </networks>
+            <profile>default</profile>
+            <quota>default</quota>
+        </default>
+        
+        <warehouse_user>
+            <password>warehouse_password</password>
+            <networks>
+                <ip>::/0</ip>
+            </networks>
+            <profile>default</profile>
+            <quota>default</quota>
+        </warehouse_user>
+        
+        <readonly_user>
+            <password>readonly_password</password>
+            <networks>
+                <ip>::/0</ip>
+            </networks>
+            <profile>readonly</profile>
+            <quota>default</quota>
+        </readonly_user>
+    </users>
+    
+    <!-- Profiles -->
+    <profiles>
+        <default>
+            <max_memory_usage>10000000000</max_memory_usage>
+            <use_uncompressed_cache>0</use_uncompressed_cache>
+            <load_balancing>random</load_balancing>
+        </default>
+        
+        <readonly>
+            <readonly>1</readonly>
+            <max_memory_usage>5000000000</max_memory_usage>
+            <use_uncompressed_cache>0</use_uncompressed_cache>
+            <load_balancing>random</load_balancing>
+        </readonly>
+    </profiles>
+    
+    <!-- Quotas -->
+    <quotas>
+        <default>
+            <interval>
+                <duration>3600</duration>
+                <queries>0</queries>
+                <errors>0</errors>
+                <result_rows>0</result_rows>
+                <read_rows>0</read_rows>
+                <execution_time>0</execution_time>
+            </interval>
+        </default>
+    </quotas>
+    
+    <!-- Compression -->
+    <compression>
+        <case>
+            <method>lz4</method>
+        </case>
+    </compression>
+    
+    <!-- Remote servers for distributed queries -->
+    <remote_servers incl="clickhouse_remote_servers"/>
+    
+    <!-- Storage policies -->
+    <storage_configuration>
+        <disks>
+            <default>
+                <path>/var/lib/clickhouse/</path>
+            </default>
+        </disks>
+        <policies>
+            <default>
+                <volumes>
+                    <default>
+                        <disk>default</disk>
+                    </volumes>
+                </default>
+            </volumes>
+        </policies>
+    </storage_configuration>
+    
+    <!-- Memory and CPU settings -->
+    <max_server_memory_usage_to_ram_ratio>0.8</max_server_memory_usage_to_ram_ratio>
+    <max_thread_pool_size>10000</max_thread_pool_size>
+    <max_concurrent_queries>100</max_concurrent_queries>
+    
+    <!-- Performance settings -->
+    <merge_tree>
+        <max_suspicious_broken_parts>5</max_suspicious_broken_parts>
+        <parts_to_delay_insert>150</parts_to_delay_insert>
+        <parts_to_throw_insert>300</parts_to_throw_insert>
+        <max_parts_in_total>100000</max_parts_in_total>
+        <max_delay_to_insert>1</max_delay_to_insert>
+        <min_delay_to_insert_ms>10</min_delay_to_insert_ms>
+        <max_delay_to_mutate_ms>15000</max_delay_to_mutate_ms>
+    </merge_tree>
+</yandex>
